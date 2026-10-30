@@ -15,9 +15,9 @@ mongoose.connect('mongodb+srv://dhyanpatel1327_db_user:Dhyan1569@cluster0.mv1kiz
     console.error("MongoDB connection error:", err);
 });
 
-// Meta WhatsApp Credentials
-const WHATSAPP_TOKEN = "EAAVF7BTNBZBoBSyjRXXvxZBiUYpO2tsnRwGVqRpfa2woyZB70MShjOJ9ZAZB2eUmobFSvm19zybTt2wY7ehs5KolMW118gap5Q8ofXGwcRecURIk9T3LtXNLK9P7lvGXL1CXku0sLXpdc1rh6pwRfh6X17ZByZBlacFbazjDoEDQI6xjXSrKGLKDEVmLDUEZAgZDZD";
-const PHONE_NUMBER_ID = "1414447435084103";
+// Meta WhatsApp Credentials (Updated with your correct Business ID and Token)
+const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN || "EAAVF7BTNBZBoBSZBVWHsdrvPhEscJzFJVEtUy3cHhmwatzCd3bw2dRjuLZArfuuehs5hhjYn57ElZCNn43kdc1cb8olknVMAfZADEAAc3QZCONTgRmmAHe3GZC32HeZBG9HOq6zZCJpShQoGbXeT01inSU8sZAZCZBGpR8ibHP4sjpJr1FrO4BC6u5IAQmLuZAixlcgZDZD";
+const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID || "1414447435084103";
 
 // Temporary In-Memory Session State for Multi-Step Chat
 const userSessions = new Map();
@@ -128,7 +128,7 @@ app.post('/webhook', async (req, res) => {
             }
             res.sendStatus(200);
         } catch (error) {
-            console.error("Webhook Error:", error);
+            console.error("Webhook Error:", error.response?.data || error.message);
             res.sendStatus(500);
         }
     } else {
@@ -136,11 +136,11 @@ app.post('/webhook', async (req, res) => {
     }
 });
 
-// Helper function to send WhatsApp messages
+// Helper function to send WhatsApp messages (Using latest v20.0 graph api)
 async function sendWhatsAppMessage(recipientPhone, textMessage) {
     try {
         await axios.post(
-            `https://graph.facebook.com/v17.0/${PHONE_NUMBER_ID}/messages`,
+            `https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`,
             {
                 messaging_product: "whatsapp",
                 to: recipientPhone,
@@ -158,6 +158,7 @@ async function sendWhatsAppMessage(recipientPhone, textMessage) {
     }
 }
 
-app.listen(3000, () => {
-    console.log("Server is running on port 3000 🚀");
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT} 🚀`);
 });
