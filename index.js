@@ -15,7 +15,7 @@ mongoose.connect('mongodb+srv://dhyanpatel1327_db_user:Dhyan1569@cluster0.mv1kiz
     console.error("MongoDB connection error:", err);
 });
 
-// Meta WhatsApp Credentials (Updated with your correct Business ID and Token)
+// Meta WhatsApp Credentials
 const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN; 
 const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID; 
 
@@ -54,12 +54,11 @@ app.post('/webhook', async (req, res) => {
 
                 let session = userSessions.get(senderPhone) || { step: 'IDLE' };
 
-                // 1st Message (Customer sends product details / QR scan message) -> Bot sends 2nd Message
+                // 1st Step: Customer sends product details / QR scan message -> Bot asks Name
                 if (session.step === 'IDLE' || messageText.includes("NKMG001W75") || messageText.toLowerCase().includes("steelpro") || messageText.toLowerCase().includes("hello")) {
                     
                     userSessions.set(senderPhone, { step: 'WAITING_FOR_NAME' });
 
-                    // 2nd Message (Bot): Welcome & asking name
                     let msg2 = "Hello, Queen! 👑❤️ Welcome to the Neno Family!\n\n" +
                                "Congratulations on bringing home your new Neno product ! ✨ " +
                                "May your kitchen be a place of creativity, confidence and joy.\n\n" +
@@ -68,7 +67,7 @@ app.post('/webhook', async (req, res) => {
                     await sendWhatsAppMessage(senderPhone, msg2);
 
                 } 
-                // 3rd Step: Customer sends name -> Bot sends 4th Message (Asking store & PIN)
+                // 2nd Step: Customer sends name -> Bot asks Store & PIN
                 else if (session.step === 'WAITING_FOR_NAME') {
                     let customerName = messageText; 
                     
@@ -77,17 +76,33 @@ app.post('/webhook', async (req, res) => {
                         customerName: customerName 
                     });
 
-                    // 4th Message (Bot): Asking store name and PIN code
                     let msg4 = `Dear Maharani ${customerName} 👑❤️,\n\n` +
                                `To complete your Neno warranty registration, may we know the name of the store you purchased your Neno appliance from and your 6-digit PIN code?\n\n` +
                                `Thank you for being a part of the Neno Family! ✨`;
 
                     await sendWhatsAppMessage(senderPhone, msg4);
                 }
-                // 5th Step: Customer sends store & PIN -> Save to DB & Bot sends Final Success Message
+                // 3rd Step: Customer sends Store & PIN -> Bot asks for Product Serial Number
                 else if (session.step === 'WAITING_FOR_STORE_AND_PIN') {
                     let customerName = session.customerName || "Maharani";
                     let storeInfo = messageText;
+
+                    userSessions.set(senderPhone, { 
+                        step: 'WAITING_FOR_SERIAL_NUMBER', 
+                        customerName: customerName,
+                        storeInfo: storeInfo
+                    });
+
+                    let msgSerial = `May we have your Neno product's *serial number* to complete your warranty registration? You'll usually find it on the product's label.\n\n` +
+                                    `Thank you for choosing Neno, Maharani! ✨`;
+
+                    await sendWhatsAppMessage(senderPhone, msgSerial);
+                }
+                // 4th Step: Customer sends Serial Number -> Save to DB & Send Final Success Message
+                else if (session.step === 'WAITING_FOR_SERIAL_NUMBER') {
+                    let customerName = session.customerName || "Maharani";
+                    let storeInfo = session.storeInfo || "";
+                    let serialNumber = messageText; // Customer dwara bheja gaya actual serial number
 
                     let expiryDate = new Date();
                     expiryDate.setMonth(expiryDate.getMonth() + 60); // 60 Months Motor Warranty
@@ -95,7 +110,7 @@ app.post('/webhook', async (req, res) => {
                     try {
                         let newProductRecord = new Product({
                             modelName: "Neno Steelpro Mixer Grinder",
-                            serialNo: "NKMG001W75",
+                            serialNo: serialNumber, // Yahi customer ka serial number database me jayega
                             customerPhone: senderPhone,
                             customerName: customerName,
                             storeInfo: storeInfo,
@@ -109,11 +124,11 @@ app.post('/webhook', async (req, res) => {
 
                     userSessions.set(senderPhone, { step: 'COMPLETED' });
 
-                    // Final Success Message (Bot response)
+                    // Final Success Message with customer's own serial number as warranty code
                     let msgFinal = `Congratulations, Maharani ${customerName}! 👑❤️\n\n` +
                                    `Your Neno warranty has been *successfully approved!*\n` +
                                    `Welcome officially to the Neno Queen Family, where every kitchen became kingdom and queen feels freedom!! 👸\n\n` +
-                                   `Your warranty code - NKMG001W75\n\n` +
+                                   `Your warranty code - ${serialNumber}\n\n` +
                                    `Enjoy your meal at your kingdom with creativity joy and freedom. ✨\n\n` +
                                    `Thank you for choosing Neno. We're proud to be a part of your kitchen journey! ❤️\n\n` +
                                    `*Neno — Unleash Your Inner Chef.*`;
@@ -136,7 +151,7 @@ app.post('/webhook', async (req, res) => {
     }
 });
 
-// Helper function to send WhatsApp messages (Using latest v20.0 graph api)
+// Helper function to send WhatsApp messages
 async function sendWhatsAppMessage(recipientPhone, textMessage) {
     try {
         await axios.post(
