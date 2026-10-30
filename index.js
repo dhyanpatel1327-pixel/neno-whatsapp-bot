@@ -1,0 +1,162 @@
+const express = require('express');
+const bodyParser = require('body-parser');
+const mongoose = require('mongoose');
+const Product = require('./models/Product');
+const axios = require('axios');
+
+const app = express();
+app.use(bodyParser.json());
+
+// MongoDB Connection
+mongoose.connect('mongodb+srv://dhyanpatel1327_db_user:Dhyan1569@cluster0.mv1kizl.mongodb.net/')
+.then(() => {
+    console.log("Connected to MongoDB successfully! 🍃");
+}).catch(err => {
+    console.error("MongoDB connection error:", err);
+});
+
+// Meta WhatsApp Credentials
+const WHATSAPP_TOKEN = "EAAVF7BTNBZBoBSZBkYfLYw9e1GBHjvKI8SFxSCgPusINAf5CMrkHXpDa7BZAH0HrKyOaQ2ZBkMONefaZA7uIXQHtULh8ZCEWQkO5QRMEHa3lzRZCEXDkFqj9dODs6PgLCHPYuESh9LbidbF5YSWKrfwehN2ZAojUzj0deF78nZA3U9G5zQyP97G6cqXjxwIM3hQZDZD";
+const PHONE_NUMBER_ID = " 1414447435084103"; // Apni Meta Phone Number ID yahan daalein
+
+// Temporary In-Memory Session State for Multi-Step Chat
+const userSessions = new Map();
+
+// Webhook GET (Verification)
+app.get('/webhook', (req, res) => {
+    let mode = req.query['hub.mode'];
+    let token = req.query['hub.verify_token'];
+    let challenge = req.query['hub.challenge'];
+
+    if (mode && token === "my_warranty_token_123") {
+        res.status(200).send(challenge);
+    } else {
+        res.sendStatus(403);
+    }
+});
+
+// Webhook POST (Incoming Messages)
+app.post('/webhook', async (req, res) => {
+    let body = req.body;
+
+    if (body.object) {
+        try {
+            let entry = body.entry[0];
+            let changes = entry.changes[0];
+            let value = changes.value;
+
+            if (value.messages && value.messages[0]) {
+                let message = value.messages[0];
+                let senderPhone = message.from; 
+                let messageText = message.text ? message.text.body.trim() : "";
+
+                console.log(`Received from ${senderPhone}: ${messageText}`);
+
+                let session = userSessions.get(senderPhone) || { step: 'IDLE' };
+
+                // 1st Message (Customer): QR scan kore pre-filled message pathabe
+                if (messageText.includes("NKMG001W75") || messageText.toLowerCase().includes("steelpro")) {
+                    
+                    userSessions.set(senderPhone, { step: 'WAITING_FOR_NAME' });
+
+                    // 2nd Message (Our Bot): Welcome & asking name[cite: 15]
+                    let msg2 = "Hello, Queen! 👑❤️ Welcome to the Neno Family!\n\n" +
+                               "Congratulations on bringing home your new Neno product ! ✨ " +
+                               "May your kitchen be a place of creativity, confidence and joy. " +
+                               "What name would you like us to call you after maharani? 💖";
+
+                    await sendWhatsAppMessage(senderPhone, msg2);
+
+                } 
+                // 3rd Message (Customer): Customer apna name bhejega
+                else if (session.step === 'WAITING_FOR_NAME') {
+                    let customerName = messageText; 
+                    
+                    userSessions.set(senderPhone, { 
+                        step: 'WAITING_FOR_STORE_AND_PIN', 
+                        customerName: customerName 
+                    });
+
+                    // 4th Message (Our Bot): Asking store name and PIN code[cite: 15]
+                    let msg4 = `Dear Maharani ${customerName} 👑❤️,\n\n` +
+                               `To complete your Neno warranty registration, may we know the name of the store you purchased your Neno appliance from and your 6-digit PIN code?\n\n` +
+                               `Thank you for being a part of the Neno Family! ✨`;
+
+                    await sendWhatsAppMessage(senderPhone, msg4);
+                }
+                // 5th Message (Customer): Customer store name aur PIN bhejega
+                else if (session.step === 'WAITING_FOR_STORE_AND_PIN') {
+                    let customerName = session.customerName || "Maharani";
+                    let storeInfo = messageText;
+
+                    let expiryDate = new Date();
+                    expiryDate.setMonth(expiryDate.getMonth() + 60); // 60 Months Motor Warranty
+
+                    try {
+                        let newProductRecord = new Product({
+                            modelName: "Neno Steelpro Mixer Grinder",
+                            serialNo: "NKMG001W75",
+                            customerPhone: senderPhone,
+                            customerName: customerName,
+                            storeInfo: storeInfo,
+                            isRegistered: true,
+                            warrantyExpiryDate: expiryDate
+                        });
+                        await newProductRecord.save();
+                    } catch (dbError) {
+                        console.log("Database save note: ", dbError.message);
+                    }
+
+                    userSessions.set(senderPhone, { step: 'COMPLETED' });
+
+                    // Final Success Message (Bot response)[cite: 16]
+                    let msgFinal = `Congratulations, Maharani ${customerName}! 👑❤️\n\n` +
+                                   `Your Neno warranty has been *successfully approved!*\n` +
+                                   `Welcome officially to the Neno Queen Family, where every kitchen became kingdom and queen feels freedom!! 👸\n\n` +
+                                   `Your warranty code - NKMG001W75\n\n` +
+                                   `Enjoy your meal at your kingdom with creativity joy and freedom. ✨\n\n` +
+                                   `Thank you for choosing Neno. We're proud to be a part of your kitchen journey! ❤️\n\n` +
+                                   `*Neno — Unleash Your Inner Chef.*`;
+
+                    await sendWhatsAppMessage(senderPhone, msgFinal);
+                }
+                else {
+                    let defaultMsg = "Namaste! Nano Kitchenware me aapka swagat hai. Kripya apna product ka official QR code scan karke warranty claim shuru karein.";
+                    await sendWhatsAppMessage(senderPhone, defaultMsg);
+                }
+            }
+            res.sendStatus(200);
+        } catch (error) {
+            console.error("Webhook Error:", error);
+            res.sendStatus(500);
+        }
+    } else {
+        res.sendStatus(404);
+    }
+});
+
+// Helper function to send WhatsApp messages
+async function sendWhatsAppMessage(recipientPhone, textMessage) {
+    try {
+        await axios.post(
+            `https://graph.facebook.com/v17.0/${PHONE_NUMBER_ID}/messages`,
+            {
+                messaging_product: "whatsapp",
+                to: recipientPhone,
+                text: { body: textMessage }
+            },
+            {
+                headers: {
+                    'Authorization': `Bearer ${WHATSAPP_TOKEN}`,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+    } catch (error) {
+        console.error("Failed to send WhatsApp message:", error.response?.data || error.message);
+    }
+}
+
+app.listen(3000, () => {
+    console.log("Server is running on port 3000 🚀");
+});
