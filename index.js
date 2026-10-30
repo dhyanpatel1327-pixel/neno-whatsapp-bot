@@ -16,7 +16,7 @@ mongoose.connect('mongodb+srv://dhyanpatel1327_db_user:Dhyan1569@cluster0.mv1kiz
 });
 
 // Meta WhatsApp Credentials (Updated with your correct Business ID and Token)
-const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN || "EAAVF7BTNBZBoBS9WTnOmHwPajXKx4EELln7qL155IgsrBhfb1ZCufjpQ59RA9EWNapTcGMA7p8cPJsPUTFb1KcBSqja8By1jZBn4ZCNWPN89qiPVmh1NHhVpBuI4Xn1PSOcKju5gudZBfFSJMMFZC9dk9NaYgxX5u26S0pR6iM9BhXd2MAzWubD8z1CcjQVQZDZD";
+const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN || "EAAVF7BTNBZBoBS31nY1ZBnnSiTc91PzofIbUhYOiDrAiBFhgN5WnRJE0sFZCR4ubmxBJDNzAZCcVmPfnTMzUcTLA54ChfxZCAH8leM4mTu5O6D3ZBgE9zjFbGwZBdYSnXKYINYyntLzZBMdqsNmyLZCI8OfQ4eIiB7Tf5exMWEy9TjMskqTLmZB4H2b8rD1lK1xAZDZD";
 const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID || "1414447435084103";
 
 // Temporary In-Memory Session State for Multi-Step Chat
