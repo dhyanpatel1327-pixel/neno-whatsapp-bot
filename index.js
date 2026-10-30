@@ -17,7 +17,7 @@ mongoose.connect('mongodb+srv://dhyanpatel1327_db_user:Dhyan1569@cluster0.mv1kiz
 
 // Meta WhatsApp Credentials
 const WHATSAPP_TOKEN = "EAAVF7BTNBZBoBSZBkYfLYw9e1GBHjvKI8SFxSCgPusINAf5CMrkHXpDa7BZAH0HrKyOaQ2ZBkMONefaZA7uIXQHtULh8ZCEWQkO5QRMEHa3lzRZCEXDkFqj9dODs6PgLCHPYuESh9LbidbF5YSWKrfwehN2ZAojUzj0deF78nZA3U9G5zQyP97G6cqXjxwIM3hQZDZD";
-const PHONE_NUMBER_ID = " 1414447435084103"; // Apni Meta Phone Number ID yahan daalein
+const PHONE_NUMBER_ID = "1414447435084103";
 
 // Temporary In-Memory Session State for Multi-Step Chat
 const userSessions = new Map();
@@ -54,21 +54,21 @@ app.post('/webhook', async (req, res) => {
 
                 let session = userSessions.get(senderPhone) || { step: 'IDLE' };
 
-                // 1st Message (Customer): QR scan kore pre-filled message pathabe
-                if (messageText.includes("NKMG001W75") || messageText.toLowerCase().includes("steelpro")) {
+                // 1st Message (Customer sends product details / QR scan message) -> Bot sends 2nd Message
+                if (session.step === 'IDLE' || messageText.includes("NKMG001W75") || messageText.toLowerCase().includes("steelpro") || messageText.toLowerCase().includes("hello")) {
                     
                     userSessions.set(senderPhone, { step: 'WAITING_FOR_NAME' });
 
-                    // 2nd Message (Our Bot): Welcome & asking name[cite: 15]
+                    // 2nd Message (Bot): Welcome & asking name
                     let msg2 = "Hello, Queen! 👑❤️ Welcome to the Neno Family!\n\n" +
                                "Congratulations on bringing home your new Neno product ! ✨ " +
-                               "May your kitchen be a place of creativity, confidence and joy. " +
+                               "May your kitchen be a place of creativity, confidence and joy.\n\n" +
                                "What name would you like us to call you after maharani? 💖";
 
                     await sendWhatsAppMessage(senderPhone, msg2);
 
                 } 
-                // 3rd Message (Customer): Customer apna name bhejega
+                // 3rd Step: Customer sends name -> Bot sends 4th Message (Asking store & PIN)
                 else if (session.step === 'WAITING_FOR_NAME') {
                     let customerName = messageText; 
                     
@@ -77,14 +77,14 @@ app.post('/webhook', async (req, res) => {
                         customerName: customerName 
                     });
 
-                    // 4th Message (Our Bot): Asking store name and PIN code[cite: 15]
+                    // 4th Message (Bot): Asking store name and PIN code
                     let msg4 = `Dear Maharani ${customerName} 👑❤️,\n\n` +
                                `To complete your Neno warranty registration, may we know the name of the store you purchased your Neno appliance from and your 6-digit PIN code?\n\n` +
                                `Thank you for being a part of the Neno Family! ✨`;
 
                     await sendWhatsAppMessage(senderPhone, msg4);
                 }
-                // 5th Message (Customer): Customer store name aur PIN bhejega
+                // 5th Step: Customer sends store & PIN -> Save to DB & Bot sends Final Success Message
                 else if (session.step === 'WAITING_FOR_STORE_AND_PIN') {
                     let customerName = session.customerName || "Maharani";
                     let storeInfo = messageText;
@@ -109,7 +109,7 @@ app.post('/webhook', async (req, res) => {
 
                     userSessions.set(senderPhone, { step: 'COMPLETED' });
 
-                    // Final Success Message (Bot response)[cite: 16]
+                    // Final Success Message (Bot response)
                     let msgFinal = `Congratulations, Maharani ${customerName}! 👑❤️\n\n` +
                                    `Your Neno warranty has been *successfully approved!*\n` +
                                    `Welcome officially to the Neno Queen Family, where every kitchen became kingdom and queen feels freedom!! 👸\n\n` +
@@ -121,7 +121,8 @@ app.post('/webhook', async (req, res) => {
                     await sendWhatsAppMessage(senderPhone, msgFinal);
                 }
                 else {
-                    let defaultMsg = "Namaste! Nano Kitchenware me aapka swagat hai. Kripya apna product ka official QR code scan karke warranty claim shuru karein.";
+                    userSessions.set(senderPhone, { step: 'IDLE' });
+                    let defaultMsg = "Namaste! Neno Kitchenware me aapka swagat hai. Kripya apna product ka message bhejen taaki warranty registration shuru ho sake.";
                     await sendWhatsAppMessage(senderPhone, defaultMsg);
                 }
             }
